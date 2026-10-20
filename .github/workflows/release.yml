@@ -1,0 +1,104 @@
+name: Release
+
+# Releases are cut manually by pushing a version tag, e.g. `git tag v1.0.0; git push origin v1.0.0`
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        # A single-file publish needs no native toolchain, so the arm64 targets are cross-published from x64 runners
+        include:
+          - os: windows-latest
+            rid: win-x64
+            archive: zip
+          - os: windows-latest
+            rid: win-arm64
+            archive: zip
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive: tar.gz
+          - os: ubuntu-latest
+            rid: linux-arm64
+            archive: tar.gz
+          - os: macos-latest
+            rid: osx-arm64
+            archive: tar.gz
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Set version from tag
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      # No trimming: Terminal.Gui and the Speech SDK rely on reflection and native interop.
+      # IncludeNativeLibrariesForSelfExtract bundles the Speech SDK native libraries into the single file.
+      - name: Publish
+        shell: bash
+        run: >
+          dotnet publish src/SttConsole.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          -p:Version=$VERSION
+          -o publish
+
+      - name: Package
+        shell: bash
+        run: |
+          name="SttConsole-$VERSION-${{ matrix.rid }}"
+          mkdir "$name"
+          # The publish folder also holds the XML doc file, so copy only the executable
+          exe="SttConsole"
+          if [ "${{ runner.os }}" = "Windows" ]; then exe="SttConsole.exe"; fi
+          cp "publish/$exe" "$name/"
+          cp LICENSE README.md "$name/"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a "$name.zip" "$name"
+          else
+            tar -czf "$name.tar.gz" "$name"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.rid }}
+          path: SttConsole-*.${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    name: Create release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # A tag with a hyphen (v1.0.0-rc.1) is published as a pre-release
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=""
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then flags="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            $flags

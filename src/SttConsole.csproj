@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>SttConsole</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- Required for IDE0005 (unused usings) to be reported in builds; CS1591 would otherwise flag every undocumented member -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Uses the latest Terminal.Gui v2 release. Update with dotnet add package Terminal.Gui -->
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.52.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
+    <PackageReference Include="NAudio" Version="3.2.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="3.2.0" />
+    <PackageReference Include="Terminal.Gui" Version="2.5.0" />
+  </ItemGroup>
+</Project>
